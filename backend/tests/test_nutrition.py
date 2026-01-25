@@ -1,7 +1,5 @@
 """Tests for nutrition endpoints"""
 
-import pytest
-from datetime import datetime, date
 from fastapi import status
 
 

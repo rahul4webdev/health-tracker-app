@@ -1,6 +1,5 @@
 """Tests for profile endpoints"""
 
-import pytest
 from fastapi import status
 
 
