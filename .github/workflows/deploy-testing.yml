@@ -70,7 +70,7 @@ jobs:
       - name: Build frontend
         working-directory: ./frontend
         env:
-          REACT_APP_API_URL: https://healthapi.gahfaudio.in:8022
+          REACT_APP_API_URL: https://healthapi.gahfaudio.in
         run: npm run build
 
   deploy-backend:
@@ -188,7 +188,7 @@ jobs:
       - name: Build frontend for testing
         working-directory: ./frontend
         env:
-          REACT_APP_API_URL: https://healthapi.gahfaudio.in:8022
+          REACT_APP_API_URL: https://healthapi.gahfaudio.in
         run: |
           npm run build
 
@@ -226,20 +226,17 @@ jobs:
 
       - name: Test backend health endpoint
         run: |
-          curl -f https://healthapi.gahfaudio.in:8022/health || \
-          curl -f http://healthapi.gahfaudio.in:8022/health || \
+          curl -f https://healthapi.gahfaudio.in/health || \
           echo "WARNING: Health check failed - verify manually"
 
       - name: Test frontend loads
         run: |
           curl -f -I https://health.gahfaudio.in/ || \
-          curl -f -I http://health.gahfaudio.in/ || \
           echo "WARNING: Frontend check failed - verify manually"
 
       - name: Test API root endpoint
         run: |
-          curl -f https://healthapi.gahfaudio.in:8022/ || \
-          curl -f http://healthapi.gahfaudio.in:8022/ || \
+          curl -f https://healthapi.gahfaudio.in/ || \
           echo "WARNING: API root check failed - verify manually"
 
   notify-completion:
@@ -255,9 +252,9 @@ jobs:
           echo "Deployment to Testing Environment Complete"
           echo "=========================================="
           echo ""
-          echo "Backend API: https://healthapi.gahfaudio.in:8022"
+          echo "Backend API: https://healthapi.gahfaudio.in"
           echo "Frontend: https://health.gahfaudio.in"
-          echo "API Docs: https://healthapi.gahfaudio.in:8022/docs"
+          echo "API Docs: https://healthapi.gahfaudio.in/docs"
           echo ""
           echo "Deployed by: ${{ github.actor }}"
           echo "Commit: ${{ github.sha }}"
