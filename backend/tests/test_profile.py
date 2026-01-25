@@ -1,4 +1,5 @@
 """Tests for profile endpoints"""
+
 import pytest
 from fastapi import status
 
@@ -28,11 +29,7 @@ class TestUpdateProfile:
         response = client.put(
             "/api/profile",
             headers=auth_headers,
-            json={
-                "name": "Updated Name",
-                "age": 35,
-                "weight_kg": 75
-            }
+            json={"name": "Updated Name", "age": 35, "weight_kg": 75},
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -43,9 +40,7 @@ class TestUpdateProfile:
     def test_update_profile_partial(self, client, auth_headers):
         """Test partial profile update"""
         response = client.put(
-            "/api/profile",
-            headers=auth_headers,
-            json={"name": "New Name Only"}
+            "/api/profile", headers=auth_headers, json={"name": "New Name Only"}
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -54,17 +49,10 @@ class TestUpdateProfile:
 
     def test_update_profile_invalid_age(self, client, auth_headers):
         """Test profile update with invalid age"""
-        response = client.put(
-            "/api/profile",
-            headers=auth_headers,
-            json={"age": -5}
-        )
+        response = client.put("/api/profile", headers=auth_headers, json={"age": -5})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_update_profile_unauthorized(self, client):
         """Test profile update without authentication"""
-        response = client.put(
-            "/api/profile",
-            json={"name": "Should Fail"}
-        )
+        response = client.put("/api/profile", json={"name": "Should Fail"})
         assert response.status_code == status.HTTP_401_UNAUTHORIZED

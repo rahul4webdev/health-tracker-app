@@ -1,4 +1,5 @@
 """Pytest fixtures and configuration"""
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -35,6 +36,7 @@ def db():
 @pytest.fixture(scope="function")
 def client(db):
     """Create a test client with overridden database dependency"""
+
     def override_get_db():
         try:
             yield db
@@ -58,7 +60,7 @@ def test_user(db):
         gender="male",
         height_cm=175,
         weight_kg=70,
-        activity_level="medium"
+        activity_level="medium",
     )
     db.add(user)
     db.commit()
@@ -71,7 +73,7 @@ def auth_headers(client, test_user):
     """Get authentication headers for test user"""
     response = client.post(
         "/api/auth/login",
-        data={"username": "test@example.com", "password": "password123"}
+        data={"username": "test@example.com", "password": "password123"},
     )
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

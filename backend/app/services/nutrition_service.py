@@ -1,4 +1,5 @@
 """Nutrition service for food log CRUD and daily summary"""
+
 from typing import List, Optional
 from datetime import datetime, date
 from decimal import Decimal
@@ -29,7 +30,7 @@ def create_food_log(db: Session, user: User, food_data: FoodLogCreate) -> FoodLo
         protein_g=food_data.protein_g or 0,
         carbs_g=food_data.carbs_g or 0,
         fats_g=food_data.fats_g or 0,
-        logged_at=food_data.logged_at
+        logged_at=food_data.logged_at,
     )
 
     db.add(food_log)
@@ -45,7 +46,7 @@ def get_food_logs(
     skip: int = 0,
     limit: int = 100,
     start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None,
 ) -> List[FoodLog]:
     """
     Get food logs for a user with optional date filtering.
@@ -87,25 +88,22 @@ def get_food_log_by_id(db: Session, user: User, food_log_id: int) -> FoodLog:
     Raises:
         HTTPException: If food log not found or doesn't belong to user
     """
-    food_log = db.query(FoodLog).filter(
-        FoodLog.id == food_log_id,
-        FoodLog.user_id == user.id
-    ).first()
+    food_log = (
+        db.query(FoodLog)
+        .filter(FoodLog.id == food_log_id, FoodLog.user_id == user.id)
+        .first()
+    )
 
     if not food_log:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Food log not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Food log not found"
         )
 
     return food_log
 
 
 def update_food_log(
-    db: Session,
-    user: User,
-    food_log_id: int,
-    food_data: FoodLogUpdate
+    db: Session, user: User, food_log_id: int, food_data: FoodLogUpdate
 ) -> FoodLog:
     """
     Update a food log entry.
@@ -153,7 +151,9 @@ def delete_food_log(db: Session, user: User, food_log_id: int) -> None:
     db.commit()
 
 
-def get_daily_summary(db: Session, user: User, target_date: date) -> DailySummaryResponse:
+def get_daily_summary(
+    db: Session, user: User, target_date: date
+) -> DailySummaryResponse:
     """
     Get daily nutrition summary for a specific date.
 
@@ -169,17 +169,21 @@ def get_daily_summary(db: Session, user: User, target_date: date) -> DailySummar
     start_datetime = datetime.combine(target_date, datetime.min.time())
     end_datetime = datetime.combine(target_date, datetime.max.time())
 
-    summary = db.query(
-        func.sum(FoodLog.calories).label('total_calories'),
-        func.sum(FoodLog.protein_g).label('total_protein'),
-        func.sum(FoodLog.carbs_g).label('total_carbs'),
-        func.sum(FoodLog.fats_g).label('total_fats'),
-        func.count(FoodLog.id).label('entries_count')
-    ).filter(
-        FoodLog.user_id == user.id,
-        FoodLog.logged_at >= start_datetime,
-        FoodLog.logged_at <= end_datetime
-    ).first()
+    summary = (
+        db.query(
+            func.sum(FoodLog.calories).label("total_calories"),
+            func.sum(FoodLog.protein_g).label("total_protein"),
+            func.sum(FoodLog.carbs_g).label("total_carbs"),
+            func.sum(FoodLog.fats_g).label("total_fats"),
+            func.count(FoodLog.id).label("entries_count"),
+        )
+        .filter(
+            FoodLog.user_id == user.id,
+            FoodLog.logged_at >= start_datetime,
+            FoodLog.logged_at <= end_datetime,
+        )
+        .first()
+    )
 
     return DailySummaryResponse(
         date=target_date.isoformat(),
@@ -187,5 +191,5 @@ def get_daily_summary(db: Session, user: User, target_date: date) -> DailySummar
         total_protein_g=summary.total_protein or Decimal(0),
         total_carbs_g=summary.total_carbs or Decimal(0),
         total_fats_g=summary.total_fats or Decimal(0),
-        entries_count=summary.entries_count or 0
+        entries_count=summary.entries_count or 0,
     )

@@ -1,4 +1,5 @@
 """Tests for nutrition endpoints"""
+
 import pytest
 from datetime import datetime, date
 from fastapi import status
@@ -18,8 +19,8 @@ class TestCreateFoodLog:
                 "protein_g": 0.5,
                 "carbs_g": 25.0,
                 "fats_g": 0.3,
-                "logged_at": "2026-01-25T12:00:00"
-            }
+                "logged_at": "2026-01-25T12:00:00",
+            },
         )
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -34,8 +35,8 @@ class TestCreateFoodLog:
             json={
                 "food_name": "Banana",
                 "calories": 105,
-                "logged_at": "2026-01-25T14:00:00"
-            }
+                "logged_at": "2026-01-25T14:00:00",
+            },
         )
         assert response.status_code == status.HTTP_201_CREATED
 
@@ -47,8 +48,8 @@ class TestCreateFoodLog:
             json={
                 "food_name": "Invalid",
                 "calories": -10,
-                "logged_at": "2026-01-25T12:00:00"
-            }
+                "logged_at": "2026-01-25T12:00:00",
+            },
         )
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -71,8 +72,8 @@ class TestGetFoodLogs:
             json={
                 "food_name": "Apple",
                 "calories": 95,
-                "logged_at": "2026-01-25T12:00:00"
-            }
+                "logged_at": "2026-01-25T12:00:00",
+            },
         )
         client.post(
             "/api/nutrition/food-log",
@@ -80,8 +81,8 @@ class TestGetFoodLogs:
             json={
                 "food_name": "Banana",
                 "calories": 105,
-                "logged_at": "2026-01-25T13:00:00"
-            }
+                "logged_at": "2026-01-25T13:00:00",
+            },
         )
 
         # Get food logs
@@ -103,13 +104,15 @@ class TestGetFoodLog:
             json={
                 "food_name": "Apple",
                 "calories": 95,
-                "logged_at": "2026-01-25T12:00:00"
-            }
+                "logged_at": "2026-01-25T12:00:00",
+            },
         )
         food_log_id = create_response.json()["id"]
 
         # Get food log
-        response = client.get(f"/api/nutrition/food-log/{food_log_id}", headers=auth_headers)
+        response = client.get(
+            f"/api/nutrition/food-log/{food_log_id}", headers=auth_headers
+        )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["food_name"] == "Apple"
@@ -132,8 +135,8 @@ class TestUpdateFoodLog:
             json={
                 "food_name": "Apple",
                 "calories": 95,
-                "logged_at": "2026-01-25T12:00:00"
-            }
+                "logged_at": "2026-01-25T12:00:00",
+            },
         )
         food_log_id = create_response.json()["id"]
 
@@ -141,10 +144,7 @@ class TestUpdateFoodLog:
         response = client.put(
             f"/api/nutrition/food-log/{food_log_id}",
             headers=auth_headers,
-            json={
-                "food_name": "Green Apple",
-                "calories": 100
-            }
+            json={"food_name": "Green Apple", "calories": 100},
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -164,17 +164,21 @@ class TestDeleteFoodLog:
             json={
                 "food_name": "Apple",
                 "calories": 95,
-                "logged_at": "2026-01-25T12:00:00"
-            }
+                "logged_at": "2026-01-25T12:00:00",
+            },
         )
         food_log_id = create_response.json()["id"]
 
         # Delete food log
-        response = client.delete(f"/api/nutrition/food-log/{food_log_id}", headers=auth_headers)
+        response = client.delete(
+            f"/api/nutrition/food-log/{food_log_id}", headers=auth_headers
+        )
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
         # Verify deletion
-        get_response = client.get(f"/api/nutrition/food-log/{food_log_id}", headers=auth_headers)
+        get_response = client.get(
+            f"/api/nutrition/food-log/{food_log_id}", headers=auth_headers
+        )
         assert get_response.status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -184,8 +188,7 @@ class TestDailySummary:
     def test_daily_summary_empty(self, client, auth_headers):
         """Test daily summary with no entries"""
         response = client.get(
-            "/api/nutrition/daily-summary?date=2026-01-25",
-            headers=auth_headers
+            "/api/nutrition/daily-summary?date=2026-01-25", headers=auth_headers
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -205,8 +208,8 @@ class TestDailySummary:
                 "protein_g": 0.5,
                 "carbs_g": 25,
                 "fats_g": 0.3,
-                "logged_at": "2026-01-25T12:00:00"
-            }
+                "logged_at": "2026-01-25T12:00:00",
+            },
         )
         client.post(
             "/api/nutrition/food-log",
@@ -217,14 +220,13 @@ class TestDailySummary:
                 "protein_g": 1.3,
                 "carbs_g": 27,
                 "fats_g": 0.4,
-                "logged_at": "2026-01-25T14:00:00"
-            }
+                "logged_at": "2026-01-25T14:00:00",
+            },
         )
 
         # Get daily summary
         response = client.get(
-            "/api/nutrition/daily-summary?date=2026-01-25",
-            headers=auth_headers
+            "/api/nutrition/daily-summary?date=2026-01-25", headers=auth_headers
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()

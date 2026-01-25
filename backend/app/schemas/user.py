@@ -1,4 +1,5 @@
 """User schemas for request/response validation"""
+
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional
 from datetime import datetime
@@ -7,6 +8,7 @@ from decimal import Decimal
 
 class UserBase(BaseModel):
     """Base user schema with common fields"""
+
     email: EmailStr
     name: Optional[str] = None
     age: Optional[int] = Field(None, gt=0, le=150)
@@ -18,11 +20,15 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     """Schema for user registration"""
-    password: str = Field(..., min_length=8, description="Password (minimum 8 characters)")
+
+    password: str = Field(
+        ..., min_length=8, description="Password (minimum 8 characters)"
+    )
 
 
 class UserUpdate(BaseModel):
     """Schema for user profile update"""
+
     name: Optional[str] = None
     age: Optional[int] = Field(None, gt=0, le=150)
     gender: Optional[str] = Field(None, pattern="^(male|female|other)$")
@@ -33,6 +39,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     """Schema for user response (excludes password_hash)"""
+
     id: int
     created_at: datetime
     updated_at: datetime

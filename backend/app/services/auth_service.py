@@ -1,4 +1,5 @@
 """Authentication service with registration, login, and JWT logic"""
+
 from typing import Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -26,8 +27,7 @@ def register_user(db: Session, user_data: UserCreate) -> User:
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
         )
 
     # Create new user with hashed password
@@ -39,7 +39,7 @@ def register_user(db: Session, user_data: UserCreate) -> User:
         gender=user_data.gender,
         height_cm=user_data.height_cm,
         weight_kg=user_data.weight_kg,
-        activity_level=user_data.activity_level
+        activity_level=user_data.activity_level,
     )
 
     db.add(user)

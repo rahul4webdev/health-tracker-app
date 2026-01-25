@@ -1,4 +1,5 @@
 """User profile routes"""
+
 from fastapi import APIRouter
 from app.dependencies import DatabaseSession, CurrentUser
 from app.schemas.user import UserResponse, UserUpdate
@@ -22,7 +23,9 @@ def get_profile(current_user: CurrentUser):
 
 
 @router.put("", response_model=UserResponse)
-def update_profile(user_data: UserUpdate, current_user: CurrentUser, db: DatabaseSession):
+def update_profile(
+    user_data: UserUpdate, current_user: CurrentUser, db: DatabaseSession
+):
     """
     Update current user's profile.
 

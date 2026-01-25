@@ -1,4 +1,5 @@
 """Main FastAPI application"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
@@ -8,7 +9,7 @@ from app.routes import auth, profile, nutrition
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="Health Tracker API for nutrition tracking and user management"
+    description="Health Tracker API for nutrition tracking and user management",
 )
 
 # Configure CORS
@@ -32,7 +33,7 @@ def root():
     return {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "status": "online"
+        "status": "online",
     }
 
 

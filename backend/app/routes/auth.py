@@ -1,4 +1,5 @@
 """Authentication routes"""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from app.dependencies import DatabaseSession, CurrentUser
@@ -9,7 +10,9 @@ from app.services.auth_service import register_user, login_user
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
+)
 def register(user_data: UserCreate, db: DatabaseSession):
     """
     Register a new user.

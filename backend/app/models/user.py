@@ -1,4 +1,5 @@
 """User database model"""
+
 from sqlalchemy import Column, Integer, String, Enum, DECIMAL, DateTime
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -8,6 +9,7 @@ from app.database import Base
 
 class GenderEnum(str, enum.Enum):
     """Gender options"""
+
     male = "male"
     female = "female"
     other = "other"
@@ -15,6 +17,7 @@ class GenderEnum(str, enum.Enum):
 
 class ActivityLevelEnum(str, enum.Enum):
     """Activity level options"""
+
     low = "low"
     medium = "medium"
     high = "high"
@@ -22,6 +25,7 @@ class ActivityLevelEnum(str, enum.Enum):
 
 class User(Base):
     """User model for authentication and profile"""
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -35,10 +39,10 @@ class User(Base):
     activity_level = Column(Enum(ActivityLevelEnum), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships
-    food_logs = relationship("FoodLog", back_populates="user", cascade="all, delete-orphan")
+    food_logs = relationship(
+        "FoodLog", back_populates="user", cascade="all, delete-orphan"
+    )

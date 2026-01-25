@@ -1,4 +1,5 @@
 """Tests for authentication endpoints"""
+
 import pytest
 from fastapi import status
 
@@ -13,8 +14,8 @@ class TestRegistration:
             json={
                 "email": "newuser@example.com",
                 "password": "password123",
-                "name": "New User"
-            }
+                "name": "New User",
+            },
         )
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -28,10 +29,7 @@ class TestRegistration:
         """Test registration with existing email"""
         response = client.post(
             "/api/auth/register",
-            json={
-                "email": "test@example.com",
-                "password": "password123"
-            }
+            json={"email": "test@example.com", "password": "password123"},
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "already registered" in response.json()["detail"].lower()
@@ -40,10 +38,7 @@ class TestRegistration:
         """Test registration with invalid email"""
         response = client.post(
             "/api/auth/register",
-            json={
-                "email": "invalid-email",
-                "password": "password123"
-            }
+            json={"email": "invalid-email", "password": "password123"},
         )
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -51,10 +46,7 @@ class TestRegistration:
         """Test registration with password too short"""
         response = client.post(
             "/api/auth/register",
-            json={
-                "email": "newuser@example.com",
-                "password": "short"
-            }
+            json={"email": "newuser@example.com", "password": "short"},
         )
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -66,7 +58,7 @@ class TestLogin:
         """Test successful login"""
         response = client.post(
             "/api/auth/login",
-            data={"username": "test@example.com", "password": "password123"}
+            data={"username": "test@example.com", "password": "password123"},
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -77,7 +69,7 @@ class TestLogin:
         """Test login with wrong password"""
         response = client.post(
             "/api/auth/login",
-            data={"username": "test@example.com", "password": "wrongpassword"}
+            data={"username": "test@example.com", "password": "wrongpassword"},
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -85,7 +77,7 @@ class TestLogin:
         """Test login with nonexistent user"""
         response = client.post(
             "/api/auth/login",
-            data={"username": "nonexistent@example.com", "password": "password123"}
+            data={"username": "nonexistent@example.com", "password": "password123"},
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -109,7 +101,6 @@ class TestGetCurrentUser:
     def test_get_current_user_invalid_token(self, client):
         """Test getting current user with invalid token"""
         response = client.get(
-            "/api/auth/me",
-            headers={"Authorization": "Bearer invalid_token"}
+            "/api/auth/me", headers={"Authorization": "Bearer invalid_token"}
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
