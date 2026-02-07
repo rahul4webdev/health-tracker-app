@@ -239,9 +239,35 @@ jobs:
           curl -f https://healthapi.gahfaudio.in/ || \
           echo "WARNING: API root check failed - verify manually"
 
+  e2e-tests:
+    name: Run Playwright E2E Tests
+    needs: smoke-tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./frontend
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Playwright E2E tests
+        working-directory: ./frontend
+        run: npx playwright test
+
   notify-completion:
     name: Notify Deployment Complete
-    needs: smoke-tests
+    needs: [smoke-tests, e2e-tests]
     runs-on: ubuntu-latest
     if: success()
 
