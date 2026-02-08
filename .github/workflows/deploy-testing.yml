@@ -125,9 +125,11 @@ jobs:
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/healthapi.gahfaudio.in/public_html/
 
       - name: Install dependencies, configure env, run migrations
+        env:
+          SSH_KEY_PATH: ~/.ssh/deploy_key
         run: |
           ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} 'bash -s' << DEPLOY_ENV
           set -e
           cd /home/healthapi.gahfaudio.in/public_html
 
@@ -136,15 +138,13 @@ jobs:
             python3 -m venv venv
           fi
 
-          # Activate virtual environment
+          # Activate and install
           source venv/bin/activate
-
-          # Install dependencies
           pip install --upgrade pip
           pip install -r requirements.txt
 
-          # Always recreate .env from secrets to keep it in sync
-          cat > .env << 'ENVEOF'
+          # Write .env from secrets (no leading whitespace)
+          cat > .env << 'ENVFILE'
           DB_HOST=${{ secrets.DB_HOST }}
           DB_USER=${{ secrets.DB_USER }}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
@@ -153,40 +153,80 @@ jobs:
           SECRET_KEY=${{ secrets.SECRET_KEY }}
           CORS_ORIGINS=https://health.gahfaudio.in,http://localhost:3000
           ENVIRONMENT=testing
-          ENVEOF
+          ENVFILE
+
+          # Strip leading whitespace from .env (safety net for HEREDOC indentation)
+          sed -i 's/^[[:space:]]*//' .env
+
+          # Verify .env was created with content
+          if [ ! -s .env ]; then
+            echo "FATAL: .env file is empty after creation"
+            exit 1
+          fi
+          echo ".env created successfully:"
+          wc -l .env
 
           # Run database migrations
           alembic upgrade head || echo "Migration warning (may already be current)"
 
-          EOF
+          DEPLOY_ENV
 
-      - name: Start and verify API service
+      - name: Restart API via systemd and verify health
         run: |
           ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} 'bash -s' << 'RESTART_SCRIPT'
           set -e
-          cd /home/healthapi.gahfaudio.in/public_html
 
-          chmod +x scripts/start_server.sh
-          bash scripts/start_server.sh
+          echo "=== Restarting health-tracker-api service ==="
+          systemctl restart health-tracker-api
 
-          # Wait for startup
-          sleep 5
+          # Wait for startup (max 30 seconds)
+          echo "Waiting for API to start..."
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8022/health > /dev/null 2>&1; then
+              echo "API is healthy after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "==============================="
+              echo "FATAL: API failed to start within 30s"
+              echo "==============================="
+              echo "--- systemd status ---"
+              systemctl status health-tracker-api --no-pager || true
+              echo "--- journal (last 50 lines) ---"
+              journalctl -u health-tracker-api --no-pager -n 50 || true
+              echo "--- api.log (last 50 lines) ---"
+              tail -50 /home/healthapi.gahfaudio.in/public_html/api.log 2>/dev/null || true
+              echo "--- processes ---"
+              ps aux | grep uvicorn || true
+              exit 1
+            fi
+            sleep 1
+          done
 
-          # Verify the service is actually responding
-          curl -f http://127.0.0.1:8022/health || {
-            echo "==============================="
-            echo "ERROR: API failed to start!"
-            echo "==============================="
-            echo "Last 200 lines of api.log:"
-            tail -n 200 /home/healthapi.gahfaudio.in/public_html/api.log 2>/dev/null || echo "No log file found"
-            echo "==============================="
-            echo "Running processes:"
-            ps aux | grep uvicorn || true
+          # Verify critical endpoints
+          echo "=== Verifying /health ==="
+          curl -f http://127.0.0.1:8022/health
+          echo ""
+
+          echo "=== Verifying / ==="
+          curl -f http://127.0.0.1:8022/
+          echo ""
+
+          echo "=== Verifying /docs ==="
+          curl -sf -o /dev/null -w "HTTP %{http_code}" http://127.0.0.1:8022/docs
+          echo ""
+
+          echo "=== Verifying process is running ==="
+          PID=$(pgrep -f "uvicorn app.main:app.*8022" || true)
+          if [ -z "$PID" ]; then
+            echo "FATAL: No uvicorn process found on port 8022"
             exit 1
-          }
-          echo "API is running and healthy on port 8022"
-          EOF
+          fi
+          echo "uvicorn running with PID: $PID"
+
+          echo "=== All local checks passed ==="
+          RESTART_SCRIPT
 
       - name: Cleanup SSH key
         if: always()
@@ -241,7 +281,7 @@ jobs:
         run: rm -f ~/.ssh/deploy_key
 
   smoke-tests:
-    name: Run Smoke Tests
+    name: Run Smoke Tests (Hard Gate)
     needs: [deploy-backend, deploy-frontend]
     runs-on: ubuntu-latest
 
@@ -249,31 +289,68 @@ jobs:
       - name: Wait for services to stabilize
         run: sleep 10
 
-      - name: Test backend health endpoint
+      - name: "GATE: Backend health endpoint must return 200"
         run: |
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://healthapi.gahfaudio.in/health)
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://healthapi.gahfaudio.in/health)
           echo "Health endpoint returned: $HTTP_CODE"
           if [ "$HTTP_CODE" != "200" ]; then
             echo "FATAL: Backend health check failed with HTTP $HTTP_CODE"
-            curl -v https://healthapi.gahfaudio.in/health 2>&1 || true
+            curl -v --max-time 10 https://healthapi.gahfaudio.in/health 2>&1 || true
             exit 1
           fi
 
-      - name: Test frontend loads
+      - name: "GATE: API root endpoint must return 200"
         run: |
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://health.gahfaudio.in/)
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://healthapi.gahfaudio.in/)
+          echo "API root returned: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "FATAL: API root check failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: "GATE: API docs must return 200"
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://healthapi.gahfaudio.in/docs)
+          echo "API docs returned: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "FATAL: API docs check failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: "GATE: CORS headers must be present for frontend origin"
+        run: |
+          CORS_HEADER=$(curl -s -D - -o /dev/null --max-time 15 \
+            -H "Origin: https://health.gahfaudio.in" \
+            -H "Access-Control-Request-Method: GET" \
+            -X OPTIONS \
+            https://healthapi.gahfaudio.in/health \
+            | grep -i "access-control-allow-origin" || true)
+          echo "CORS header: $CORS_HEADER"
+          if [ -z "$CORS_HEADER" ]; then
+            echo "FATAL: No CORS Access-Control-Allow-Origin header returned"
+            echo "Checking with GET request..."
+            curl -s -D - -o /dev/null --max-time 10 \
+              -H "Origin: https://health.gahfaudio.in" \
+              https://healthapi.gahfaudio.in/health | grep -i "access-control" || true
+            exit 1
+          fi
+          echo "CORS is properly configured"
+
+      - name: "GATE: Frontend must return 200"
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://health.gahfaudio.in/)
           echo "Frontend returned: $HTTP_CODE"
           if [ "$HTTP_CODE" != "200" ]; then
             echo "FATAL: Frontend check failed with HTTP $HTTP_CODE"
             exit 1
           fi
 
-      - name: Test API root endpoint
+      - name: "GATE: Frontend content must be HTML"
         run: |
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://healthapi.gahfaudio.in/)
-          echo "API root returned: $HTTP_CODE"
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "FATAL: API root check failed with HTTP $HTTP_CODE"
+          CONTENT_TYPE=$(curl -s -D - -o /dev/null --max-time 15 https://health.gahfaudio.in/ | grep -i "content-type" || true)
+          echo "Content-Type: $CONTENT_TYPE"
+          if ! echo "$CONTENT_TYPE" | grep -qi "text/html"; then
+            echo "FATAL: Frontend is not serving HTML"
             exit 1
           fi
 
@@ -320,13 +397,14 @@ jobs:
           echo "Frontend: https://health.gahfaudio.in"
           echo "API Docs: https://healthapi.gahfaudio.in/docs"
           echo ""
+          echo "All smoke tests PASSED:"
+          echo "  - /health returns 200"
+          echo "  - / returns 200"
+          echo "  - /docs returns 200"
+          echo "  - CORS headers present"
+          echo "  - Frontend serves HTML"
+          echo ""
           echo "Deployed by: ${{ github.actor }}"
           echo "Commit: ${{ github.sha }}"
           echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo ""
-          echo "Next steps:"
-          echo "1. Verify deployment manually"
-          echo "2. Test core user flows"
-          echo "3. Check for console errors"
-          echo "4. Approve for production deployment if ready"
           echo "=========================================="
