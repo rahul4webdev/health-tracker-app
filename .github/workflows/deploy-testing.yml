@@ -91,7 +91,7 @@ jobs:
         working-directory: ./backend
         run: |
           # Create deployment directory
-          mkdir -p deploy
+          mkdir -p deploy/scripts
 
           # Copy application files
           cp -r app deploy/
@@ -99,6 +99,8 @@ jobs:
           cp requirements.txt deploy/
           cp alembic.ini deploy/
           cp .env.example deploy/.env.example
+          cp scripts/start_server.sh deploy/scripts/start_server.sh
+          chmod +x deploy/scripts/start_server.sh
 
           # Create deployment info
           echo "DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > deploy/DEPLOY_INFO.txt
@@ -115,14 +117,18 @@ jobs:
       - name: Deploy backend files to server
         run: |
           rsync -avz --delete \
+            --exclude='venv' \
+            --exclude='.env' \
+            --exclude='api.log' \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }}" \
             ./backend/deploy/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/healthapi.gahfaudio.in/public_html/
 
-      - name: Install dependencies and run migrations on server
+      - name: Install dependencies, configure env, run migrations
         run: |
           ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          set -e
           cd /home/healthapi.gahfaudio.in/public_html
 
           # Create virtual environment if not exists
@@ -137,30 +143,49 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-          # Create .env file from secrets (if not exists)
-          if [ ! -f ".env" ]; then
-            cat > .env << 'ENVEOF'
+          # Always recreate .env from secrets to keep it in sync
+          cat > .env << 'ENVEOF'
           DB_HOST=${{ secrets.DB_HOST }}
           DB_USER=${{ secrets.DB_USER }}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           DB_PORT=${{ secrets.DB_PORT }}
           DATABASE=${{ secrets.DATABASE }}
           SECRET_KEY=${{ secrets.SECRET_KEY }}
+          CORS_ORIGINS=https://health.gahfaudio.in,http://localhost:3000
           ENVIRONMENT=testing
           ENVEOF
-          fi
 
           # Run database migrations
-          alembic upgrade head
+          alembic upgrade head || echo "Migration warning (may already be current)"
 
-          # Restart application (adjust based on process manager)
-          # Using systemd service (example)
-          sudo systemctl restart health-tracker-api || echo "Service restart skipped (configure systemd first)"
+          EOF
 
-          # OR using screen/tmux (alternative)
-          # pkill -f "uvicorn app.main:app"
-          # screen -dmS health-tracker-api venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8022
+      - name: Start and verify API service
+        run: |
+          ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          set -e
+          cd /home/healthapi.gahfaudio.in/public_html
 
+          chmod +x scripts/start_server.sh
+          bash scripts/start_server.sh
+
+          # Wait for startup
+          sleep 5
+
+          # Verify the service is actually responding
+          curl -f http://127.0.0.1:8022/health || {
+            echo "==============================="
+            echo "ERROR: API failed to start!"
+            echo "==============================="
+            echo "Last 200 lines of api.log:"
+            tail -n 200 /home/healthapi.gahfaudio.in/public_html/api.log 2>/dev/null || echo "No log file found"
+            echo "==============================="
+            echo "Running processes:"
+            ps aux | grep uvicorn || true
+            exit 1
+          }
+          echo "API is running and healthy on port 8022"
           EOF
 
       - name: Cleanup SSH key
@@ -221,23 +246,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Wait for services to start
+      - name: Wait for services to stabilize
         run: sleep 10
 
       - name: Test backend health endpoint
         run: |
-          curl -f https://healthapi.gahfaudio.in/health || \
-          echo "WARNING: Health check failed - verify manually"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://healthapi.gahfaudio.in/health)
+          echo "Health endpoint returned: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "FATAL: Backend health check failed with HTTP $HTTP_CODE"
+            curl -v https://healthapi.gahfaudio.in/health 2>&1 || true
+            exit 1
+          fi
 
       - name: Test frontend loads
         run: |
-          curl -f -I https://health.gahfaudio.in/ || \
-          echo "WARNING: Frontend check failed - verify manually"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://health.gahfaudio.in/)
+          echo "Frontend returned: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "FATAL: Frontend check failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
 
       - name: Test API root endpoint
         run: |
-          curl -f https://healthapi.gahfaudio.in/ || \
-          echo "WARNING: API root check failed - verify manually"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://healthapi.gahfaudio.in/)
+          echo "API root returned: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "FATAL: API root check failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
 
   e2e-tests:
     name: Run Playwright E2E Tests

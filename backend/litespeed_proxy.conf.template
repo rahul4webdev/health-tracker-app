@@ -1,0 +1,34 @@
+# LiteSpeed / OpenLiteSpeed Reverse Proxy Configuration
+# Server: CyberPanel with LiteSpeed on 62.72.58.74
+#
+# This template documents the proxy rule needed for the Health Tracker API.
+# Apply via CyberPanel → Website → healthapi.gahfaudio.in → External App + Context
+#
+# STEP 1: External App (CyberPanel → Websites → healthapi.gahfaudio.in → External App)
+#   Name:           health_tracker_api
+#   Address:        127.0.0.1:8022
+#   Max Connections: 100
+#   Environment:    (leave empty)
+#   Initial Timeout: 60
+#   Retry Timeout:   0
+#   Response Buffering: No
+#
+# STEP 2: Context (CyberPanel → Websites → healthapi.gahfaudio.in → Context)
+#   Type:    Proxy
+#   URI:     /
+#   External App: health_tracker_api
+#
+# STEP 3: Verify
+#   After saving, LiteSpeed auto-restarts.
+#   Test: curl -s -o /dev/null -w "%{http_code}" https://healthapi.gahfaudio.in/health
+#   Expected: 200
+#
+# IMPORTANT: If uvicorn is not running on port 8022, LiteSpeed returns HTTP 503.
+# The deploy workflow now starts uvicorn via scripts/start_server.sh and verifies
+# the process is running before completing deployment.
+#
+# Troubleshooting 503:
+#   1. SSH to server: ssh user@62.72.58.74
+#   2. Check if uvicorn is running: ps aux | grep uvicorn
+#   3. If not running: cd /home/healthapi.gahfaudio.in/public_html && bash scripts/start_server.sh
+#   4. Check logs: tail -100 /home/healthapi.gahfaudio.in/public_html/api.log
