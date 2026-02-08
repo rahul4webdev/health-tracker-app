@@ -1,7 +1,9 @@
 """Main FastAPI application"""
 
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from app.config import settings
 from app.routes import auth, profile, nutrition
 
@@ -41,3 +43,12 @@ def root():
 def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
+
+
+@app.get("/DEPLOY_INFO.txt")
+def deploy_info():
+    """Serve deployment info for verification systems."""
+    info_file = Path("DEPLOY_INFO.txt")
+    if info_file.exists():
+        return PlainTextResponse(info_file.read_text())
+    return PlainTextResponse("DEPLOY_INFO.txt not found", status_code=404)
