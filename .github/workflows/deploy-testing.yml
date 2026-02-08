@@ -336,6 +336,40 @@ jobs:
           fi
           echo "CORS is properly configured"
 
+      - name: "GATE: DEPLOY_INFO.txt must be accessible"
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://healthapi.gahfaudio.in/DEPLOY_INFO.txt)
+          echo "DEPLOY_INFO.txt returned: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "FATAL: DEPLOY_INFO.txt not accessible (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+          CONTENT=$(curl -sf --max-time 10 https://healthapi.gahfaudio.in/DEPLOY_INFO.txt)
+          echo "$CONTENT"
+          if ! echo "$CONTENT" | grep -q "GIT_COMMIT"; then
+            echo "FATAL: DEPLOY_INFO.txt does not contain GIT_COMMIT"
+            exit 1
+          fi
+          echo "DEPLOY_INFO.txt is accessible and contains commit info"
+
+      - name: "GATE: CORS must return exact frontend origin (no wildcard)"
+        run: |
+          ORIGIN_HEADER=$(curl -sf -D - -o /dev/null --max-time 15 \
+            -H "Origin: https://health.gahfaudio.in" \
+            https://healthapi.gahfaudio.in/health \
+            | grep -i "access-control-allow-origin" || true)
+          echo "CORS origin header: $ORIGIN_HEADER"
+          if ! echo "$ORIGIN_HEADER" | grep -q "https://health.gahfaudio.in"; then
+            echo "FATAL: CORS does not return https://health.gahfaudio.in"
+            echo "Got: $ORIGIN_HEADER"
+            exit 1
+          fi
+          if echo "$ORIGIN_HEADER" | grep -q "\*"; then
+            echo "FATAL: CORS uses wildcard (*) — must be explicit origin"
+            exit 1
+          fi
+          echo "CORS correctly returns exact origin (no wildcard)"
+
       - name: "GATE: Frontend must return 200"
         run: |
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://health.gahfaudio.in/)
